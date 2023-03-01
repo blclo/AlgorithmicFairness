@@ -3,3 +3,5 @@
 
 # Other dependencies
 numpy
+pandas
+jupyter
