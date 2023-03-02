@@ -1,5 +1,8 @@
-from cnn_network import CNN, get_loss_function, get_optimizer
-from cnn_network import get_transforms_val, get_transforms_train, CNN, get_loss_function, get_optimizer
+#!/usr/bin/python
+# 
+from model import CNN, get_loss_function, get_optimizer
+from model import get_transforms_val, get_transforms_train, CNN, get_loss_function, get_optimizer
+from src.data.dataloader import *
 import torch
 import torchvision
 
@@ -8,13 +11,6 @@ cnn_network = CNN()  # create CNN model
 print("CNN Architecture:")
 print(cnn_network)
 
-print("")
-print("Testing network input / output.")
-test_input = torch.zeros(1, 3, 50, 50)  # batch size X 3 (RGB) X width X height
-print(f"Input shape: {test_input.shape}")
-test_output = cnn_network(test_input)  # batch size X # classes
-print(f"Output shape: {test_output.shape}")
-
 criterion = get_loss_function()  # get loss function
 optimizer = get_optimizer(cnn_network, lr=0.001, momentum=0.9)  # get optimizer
 
@@ -22,7 +18,7 @@ optimizer = get_optimizer(cnn_network, lr=0.001, momentum=0.9)  # get optimizer
 # set all training parameters. You can play around with these
 # *********************************************************** #
 
-batch_size = 8          # Number of images in each batch
+batch_size = 100          # Number of images in each batch
 learning_rate = 0.001    # Learning rate in the optimizer
 momentum = 0.9           # Momentum in SGD
 num_epochs = 15           # Number of passes over the entire dataset
@@ -118,3 +114,4 @@ plt.legend(['Training loss', 'Val loss'])
 plt.xlabel('Epoch')
 plt.show()
 plt.close()
+'''
