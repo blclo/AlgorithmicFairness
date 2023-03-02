@@ -1,12 +1,10 @@
 #!/usr/bin/python
 # 
-from model import CNN, get_loss_function, get_optimizer
-from model import get_transforms_val, get_transforms_train, CNN, get_loss_function, get_optimizer
+from model import MLP, get_loss_function, get_optimizer
 from src.data.dataloader import *
+import matplotlib.pyplot as plt
 import torch
 import torchvision
-
-cnn_network = CNN()  # create CNN model
 
 print("CNN Architecture:")
 print(cnn_network)
@@ -14,104 +12,96 @@ print(cnn_network)
 criterion = get_loss_function()  # get loss function
 optimizer = get_optimizer(cnn_network, lr=0.001, momentum=0.9)  # get optimizer
 
-# *********************************************************** #
-# set all training parameters. You can play around with these
-# *********************************************************** #
+#  ---------------  Training  ---------------
+def train(csv_file, n_epochs=100):
+    """Trains the model.
+    Args:
+        csv_file (str): Absolute path of the dataset used for training.
+        n_epochs (int): Number of epochs to train.
+    """
+    batch_size = 100          # Number of entries in each batch
 
-batch_size = 100          # Number of images in each batch
-learning_rate = 0.001    # Learning rate in the optimizer
-momentum = 0.9           # Momentum in SGD
-num_epochs = 15           # Number of passes over the entire dataset
-print_every_iters = 100  # Print training loss every X mini-batches
+    # Load dataset
+    data = CatalanJuvenileJustice("./AlgorithmicFairness/catalan-juvenile-recidivism-subset-numeric.csv")
+    data.get_loaders(batch_size, split_type = 'random')
 
+ # Split into training and test
+    train_size = int(0.8 * len(dataset))
+    test_size = len(dataset) - train_size
+    trainset, testset = random_split(dataset, [train_size, test_size])
 
-# *********************************************************** #
-# Initialize all the training components, e.g. model, cost function
-# *********************************************************** #
+    # Dataloaders
+    trainloader = DataLoader(trainset, batch_size=200, shuffle=True)
+    testloader = DataLoader(testset, batch_size=200, shuffle=False)
 
-# Get transforms
-transform_train = get_transforms_train()
-transform_val = get_transforms_val()
+    # Use gpu if available
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Generate our data loaders
-train_loader, val_loader, test_loader = get_dataloaders(batch_size, transform_train, transform_val)
+    # Define the model
+    D_in, H = 19, 15
+    net = MLP(D_in, H).to(device)
 
-# create CNN model
-cnn_network = CNN()  
+    # Loss function
+    criterion = get_loss_function
 
-# Get optimizer and loss functions
-criterion = get_loss_function() 
-optimizer = get_optimizer(cnn_network, lr=learning_rate, momentum=momentum) 
+    # Optimizer
+    optimizer = get_optimizer(net)
 
-# *********************************************************** #
-# The main training loop. You dont need to change this
-# *********************************************************** #
-training_loss_per_epoch = []
-val_loss_per_epoch = []
-for epoch in range(num_epochs):  # loop over the dataset multiple times
-    # First we loop over training dataset
-    running_loss = 0.0
+    # Train the net
+    loss_per_iter = []
+    loss_per_batch = []
+    training_loss_per_epoch = []
 
-    # Set network to train mode before training
-    cnn_network.train()
-    for i, data in enumerate(train_loader, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
+    num_epochs = 15           # Number of passes over the entire dataset
+    print_every_iters = 100  # Print training loss every X mini-batches
 
-        # zero the parameter gradients
-        optimizer.zero_grad()  # zero the gradients from previous iteration
+    for epoch in range(num_epochs):
 
-        # forward + backward + optimize
-        outputs = cnn_network(inputs)  # forward pass to obtain network outputs
-        loss = criterion(outputs, labels)  # compute loss with respect to labels
-        loss.backward()  # compute gradients with backpropagation (autograd)
-        optimizer.step()  # optimize network parameters
+            running_loss = 0.0
+            for i, (inputs, labels) in enumerate(trainloader):
+                # get the inputs
+                inputs = inputs.to(device)
+                labels = labels.to(device)
 
-        # print statistics
-        running_loss += loss.item()
-        if (i + 1) % print_every_iters == 0:
-            print(
-                f'[Epoch: {epoch + 1} / {num_epochs},'
-                f' Iter: {i + 1:5d} / {len(train_loader)}]'
-                f' Training loss: {running_loss / (i + 1):.3f}'
-            )
-    
-    mean_loss = running_loss / len(train_loader)
-    training_loss_per_epoch.append(mean_loss)
+                # Zero the parameter gradients
+                optimizer.zero_grad()
 
-    # Next we loop over validation dataset
-    running_loss = 0.0
+                # Forward + backward + optimize
+                outputs = net(inputs.float())
+                loss = criterion(outputs, labels.float())
+                loss.backward()
+                optimizer.step()
 
-    # Set network to eval mode before validation
-    cnn_network.eval()
-    for i, data in enumerate(val_loader, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
+                # Save loss to plot
+                running_loss += loss.item()
+                loss_per_iter.append(loss.item())
 
-        # on validation dataset, we only do forward, without computing gradients
-        with torch.no_grad():
-            outputs = cnn_network(inputs)  # forward pass to obtain network outputs
-            loss = criterion(outputs, labels)  # compute loss with respect to labels
-        
-        # print statistics
-        running_loss += loss.item()
+                if (i + 1) % print_every_iters == 0:
+                    print(
+                        f'[Epoch: {epoch + 1} / {num_epochs},'
+                        f' Iter: {i + 1:5d} / {len(trainloader)}]'
+                        f' Training loss: {running_loss / (i + 1):.3f}'
+                    )
 
-    mean_loss = running_loss / len(val_loader)
-    val_loss_per_epoch.append(mean_loss)
+            loss_per_batch.append(running_loss / (i + 1))
+            running_loss = 0.0
+            mean_loss = running_loss / len(trainloader)
+            training_loss_per_epoch.append(mean_loss)
 
-    print(
-        f'[Epoch: {epoch + 1} / {num_epochs}]'
-        f' Validation loss: {mean_loss:.3f}'
-    )
+    # Comparing training to test
+    dataiter = iter(testloader)
+    inputs, labels = dataiter.next()
+    inputs = inputs.to(device)
+    labels = labels.to(device)
+    outputs = net(inputs.float())
+    print("Root mean squared error")
+    print("Training:", np.sqrt(loss_per_batch[-1]))
+    print("Test", np.sqrt(criterion(labels.float(), outputs).detach().cpu().numpy()))
 
-print('Finished Training')
-
-# Plot the training curves
-plt.figure()
-plt.plot(np.array(training_loss_per_epoch))
-plt.plot(np.array(val_loss_per_epoch))
-plt.legend(['Training loss', 'Val loss'])
-plt.xlabel('Epoch')
-plt.show()
-plt.close()
-'''
+    # Plot training loss curve
+    plt.plot(np.arange(len(loss_per_iter)), loss_per_iter, "-", alpha=0.5, label="Loss per epoch")
+    plt.plot(np.arange(len(loss_per_iter), step=4) + 3, loss_per_batch, ".-", label="Loss per mini-batch")
+    plt.xlabel("Number of epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.show()
