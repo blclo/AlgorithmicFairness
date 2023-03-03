@@ -20,15 +20,15 @@ class CatalanJuvenileJustice(Dataset):
 
         # Extract data
         self.columns = datafile['data']['columns']
-        self.data = torch.tensor(datafile['data']['content'])
+        self.data = torch.FloatTensor(datafile['data']['content'])
 
         # Extract labels
         self.target_name = datafile['labels']['name']
-        self.labels = torch.tensor(datafile['labels']['content'])
+        self.labels = torch.LongTensor(datafile['labels']['content'])
 
         # Define number of classes and points
         self.n_classes = self.labels.unique().__len__()
-        self.N_points = self.labels.__len__()
+        self.n_points, self.n_attributes = self.data.shape
 
     def __len__(self):
         return len(self.data)
