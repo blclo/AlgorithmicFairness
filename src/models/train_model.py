@@ -6,12 +6,6 @@ import matplotlib.pyplot as plt
 import torch
 import torchvision
 
-print("CNN Architecture:")
-print(cnn_network)
-
-criterion = get_loss_function()  # get loss function
-optimizer = get_optimizer(cnn_network, lr=0.001, momentum=0.9)  # get optimizer
-
 #  ---------------  Training  ---------------
 def train(csv_file, n_epochs=100):
     """Trains the model.
@@ -30,9 +24,9 @@ def train(csv_file, n_epochs=100):
     test_size = len(dataset) - train_size
     trainset, testset = random_split(dataset, [train_size, test_size])
 
-    # Dataloaders
-    trainloader = DataLoader(trainset, batch_size=200, shuffle=True)
-    testloader = DataLoader(testset, batch_size=200, shuffle=False)
+    # Dataloaders NOTE: NOT SURE IF THIS IS THE CORRECT WAY
+    trainloader = data['train_dataset']
+    testloader =  data['val_dataset']
 
     # Use gpu if available
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -40,6 +34,8 @@ def train(csv_file, n_epochs=100):
     # Define the model
     D_in, H = 19, 15
     net = MLP(D_in, H).to(device)
+    print("MLP Architecture:")
+    print(net)
 
     # Loss function
     criterion = get_loss_function
@@ -50,7 +46,7 @@ def train(csv_file, n_epochs=100):
     # Train the net
     loss_per_iter = []
     loss_per_batch = []
-
+    training_loss_per_epoch = []
 
     num_epochs = 15           # Number of passes over the entire dataset
     print_every_iters = 100  # Print training loss every X mini-batches

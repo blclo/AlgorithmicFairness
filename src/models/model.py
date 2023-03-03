@@ -18,11 +18,6 @@ class MLP(nn.Module):
         return x.squeeze()
 
 def get_loss_function():
-    """Return the loss function to use during training. We use
-       the Cross-Entropy loss for now.
-    
-    See https://pytorch.org/docs/stable/nn.html#loss-functions.
-    """
     return nn.BCELoss()
 
 
