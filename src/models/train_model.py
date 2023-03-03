@@ -1,107 +1,123 @@
 #!/usr/bin/python
 # 
-from model import MLP, get_loss_function, get_optimizer
-from src.data.dataloader import *
-import matplotlib.pyplot as plt
+
 import torch
-import torchvision
+from torch.utils.tensorboard import SummaryWriter
 
-print("CNN Architecture:")
-print(cnn_network)
+from tqdm import trange
+import matplotlib.pyplot as plt
 
-criterion = get_loss_function()  # get loss function
-optimizer = get_optimizer(cnn_network, lr=0.001, momentum=0.9)  # get optimizer
+from src.models.model import MLP, FullyConnected, get_loss_function, get_optimizer
+from src.data.dataloader import CatalanJuvenileJustice
 
 #  ---------------  Training  ---------------
-def train(csv_file, n_epochs=100):
-    """Trains the model.
+def train(
+        datafolder_path: str,
+        batch_size: int = 128, num_workers: int = 1, test_proportion: float = 0.2, val_proportion: float = 0.2, split_type: str = 'random',
+        lr=1e-3, epochs: int = 100,
+        experiment_name: str = '',
+    ):
+    """
+    Trains the model.
+    
     Args:
         csv_file (str): Absolute path of the dataset used for training.
         n_epochs (int): Number of epochs to train.
     """
-    batch_size = 100          # Number of entries in each batch
 
     # Load dataset
-    data = CatalanJuvenileJustice("./AlgorithmicFairness/catalan-juvenile-recidivism-subset-numeric.csv")
-    data.get_loaders(batch_size, split_type = 'random')
+    dataset = CatalanJuvenileJustice(
+        data_path=f"{datafolder_path}/processed/catalan_dataset.pth"
+    )
 
- # Split into training and test
-    train_size = int(0.8 * len(dataset))
-    test_size = len(dataset) - train_size
-    trainset, testset = random_split(dataset, [train_size, test_size])
-
-    # Dataloaders
-    trainloader = DataLoader(trainset, batch_size=200, shuffle=True)
-    testloader = DataLoader(testset, batch_size=200, shuffle=False)
+    # Split into training and test
+    train_loader, val_loader, test_loader = dataset.get_loaders(
+        batch_size=batch_size, 
+        shuffle=True, 
+        num_workers=1, 
+        test_size=test_proportion, 
+        val_size=val_proportion, 
+        split_type=split_type,
+    )
 
     # Use gpu if available
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # Define the model
-    D_in, H = 19, 15
-    net = MLP(D_in, H).to(device)
+    # Define the model, loss criterion and optimizer
+    model = FullyConnected(channels_in = dataset.n_attributes, channels_out = 2).to(device)
+    criterion = get_loss_function(type='NLL')
+    optimizer = get_optimizer(model, type='Adam', lr=lr)
 
-    # Loss function
-    criterion = get_loss_function
+    print("MLP Architecture:")
+    print(model)
 
-    # Optimizer
-    optimizer = get_optimizer(net)
+    writer = SummaryWriter(f"logs/{experiment_name}")
+    with trange(epochs) as t:
+        for epoch in t:
+            running_loss_train, running_loss_val    = 0.0, 0.0
+            running_acc_train,  running_acc_val     = 0.0, 0.0
 
-    # Train the net
-    loss_per_iter = []
-    loss_per_batch = []
-
-
-    num_epochs = 15           # Number of passes over the entire dataset
-    print_every_iters = 100  # Print training loss every X mini-batches
-
-    for epoch in range(num_epochs):
-
-            running_loss = 0.0
-            for i, (inputs, labels) in enumerate(trainloader):
-                # get the inputs
-                inputs = inputs.to(device)
-                labels = labels.to(device)
+            for batch in iter(train_loader):
+                # Extract data                
+                inputs, labels = batch['data'].to(device), batch['label'].to(device)
 
                 # Zero the parameter gradients
                 optimizer.zero_grad()
 
-                # Forward + backward + optimize
-                outputs = net(inputs.float())
-                loss = criterion(outputs, labels.float())
+                # Forward + backward
+                probs, log_probs = model(inputs)
+                loss = criterion(log_probs, labels)
+                running_loss_train += loss.item()
                 loss.backward()
+
+                # Store accuracy
+                _, predictions = probs.topk(1, dim=1)
+                equals = predictions == labels.view(*predictions.shape)
+                running_acc_train += torch.mean(equals.type(torch.FloatTensor))
+
+                # Optimize
                 optimizer.step()
 
-                # Save loss to plot
-                running_loss += loss.item()
-                loss_per_iter.append(loss.item())
+            # Validation
+            with torch.no_grad():
+                for batch in iter(val_loader):
+                    inputs, labels = batch['data'].to(device), batch['label'].to(device)
 
-                if (i + 1) % print_every_iters == 0:
-                    print(
-                        f'[Epoch: {epoch + 1} / {num_epochs},'
-                        f' Iter: {i + 1:5d} / {len(trainloader)}]'
-                        f' Training loss: {running_loss / (i + 1):.3f}'
-                    )
+                    # Get predictions
+                    probs, log_probs = model(inputs)
+                    _, predictions = probs.topk(1, dim=1)
 
-            loss_per_batch.append(running_loss / (i + 1))
-            running_loss = 0.0
-            mean_loss = running_loss / len(trainloader)
-            training_loss_per_epoch.append(mean_loss)
+                    # Compute loss and accuracy
+                    running_loss_val += criterion(log_probs, labels)
+                    equals = predictions == labels.view(*predictions.shape)
+                    running_acc_val += torch.mean(equals.type(torch.FloatTensor))
 
-    # Comparing training to test
-    dataiter = iter(testloader)
-    inputs, labels = dataiter.next()
-    inputs = inputs.to(device)
-    labels = labels.to(device)
-    outputs = net(inputs.float())
-    print("Root mean squared error")
-    print("Training:", np.sqrt(loss_per_batch[-1]))
-    print("Test", np.sqrt(criterion(labels.float(), outputs).detach().cpu().numpy()))
+            # Update progress bar
+            train_loss_descr = (
+                f"Train loss: {running_loss_train / len(train_loader):.3f}"
+            )
+            val_loss_descr = (
+                f"Validation loss: {running_loss_val / len(val_loader):.3f}"
+            )
+            val_acc_descr = (
+                f"Validation accuracy: {running_acc_val / len(val_loader):.3f}"
+            )
+            t.set_description(
+                f"EPOCH [{epoch}/{epochs}] --> {train_loss_descr} | {val_loss_descr} | {val_acc_descr} | Progress: "
+            )
 
-    # Plot training loss curve
-    plt.plot(np.arange(len(loss_per_iter)), loss_per_iter, "-", alpha=0.5, label="Loss per epoch")
-    plt.plot(np.arange(len(loss_per_iter), step=4) + 3, loss_per_batch, ".-", label="Loss per mini-batch")
-    plt.xlabel("Number of epochs")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.show()
+            writer.add_scalar('NLLLoss/train',  running_loss_train  / len(train_loader),    epoch)
+            writer.add_scalar('accuracy/train', running_acc_train   / len(train_loader),    epoch)
+            writer.add_scalar('NLLLoss/validation',    running_loss_val    / len(val_loader),      epoch)
+            writer.add_scalar('accuracy/validation',   running_acc_val     / len(val_loader),      epoch)
+
+if __name__ == '__main__':
+    import time
+
+    train(
+        datafolder_path = 'data',
+        batch_size = 128, 
+        epochs = 100, 
+        lr=1e-3,
+        experiment_name=f'test-{int(round(time.time()))}'
+    )

@@ -5,3 +5,7 @@
 numpy
 pandas
 jupyter
+matplotlib
+seaborn
+tensorboard
+tqdm
