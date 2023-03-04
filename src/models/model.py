@@ -25,7 +25,7 @@ class FullyConnected(nn.Module):
     def __init__(self, channels_in, channels_out=1):
         super().__init__()
 
-        self.net2 = nn.Sequential(
+        self.net = nn.Sequential(
             nn.Linear(channels_in, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
