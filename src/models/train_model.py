@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # 
 
+import os
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -18,7 +19,7 @@ def train(
         datafolder_path: str,
         batch_size: int = 128, num_workers: int = 1, test_proportion: float = 0.2, val_proportion: float = 0.2, split_type: str = 'random',
         lr=1e-3, epochs: int = 100, loss_type: str = 'BCE', optimizer: str = 'SGD', momentum: float = 0.9,
-        experiment_name: str = str(int(round(time.time()))),
+        experiment_name: str = str(int(round(time.time()))), save_path: str = '',
         seed: int = 42,
     ):
     """
@@ -37,6 +38,7 @@ def train(
     """
     # Set seed
     set_seed(seed)
+    current_best_loss = torch.inf
 
     # Load dataset
     dataset = CatalanJuvenileJustice(
@@ -104,6 +106,42 @@ def train(
                     equals = (y_pred >= 0.5) == labels.view(*y_pred.shape)
                     running_acc_val += torch.mean(equals.type(torch.FloatTensor))
 
+            if running_loss_val / len(val_loader) < current_best_loss:
+                current_best_loss = running_loss_val / len(val_loader)
+                # Create and save checkpoint
+                checkpoint = {
+                    "experiment_name": experiment_name,
+                    "seed": seed,
+                    "model.net": model.net,
+                    "input_parameters": {
+                        "input_size": dataset.n_attributes,
+                        "output_size": 1,
+                    },
+                    "training_parameters": {
+                        "save_path": save_path,
+                        "lr": lr,
+                        "epochs": epochs,
+                        "batch_size": batch_size,
+                        "device": device,
+                        "loss_type": loss_type,
+                        "optimizer": {
+                            "name": optimizer,
+                            "momentum": momentum,
+                        },
+                    },
+                    "data": {
+                        "data_path": datafolder_path,
+                        'test_proportion': test_proportion,
+                        'val_proportion': val_proportion,
+                        'split_type': split_type,
+                    },
+                    "best_epoch": epoch + 1,
+                    "state_dict": model.state_dict(),
+                }
+                os.makedirs(f"{save_path}/{experiment_name}", exist_ok=True)
+                torch.save(checkpoint, f"{save_path}/{experiment_name}/best.ckpt")
+
+
             # Update progress bar
             train_loss_descr = (
                 f"Train loss: {running_loss_train / len(train_loader):.3f}"
@@ -130,12 +168,11 @@ def train(
 if __name__ == '__main__':
 
     train(
-        #datafolder_path = 'projects/AlgorithmicFairness/data',
         datafolder_path = 'data',
         batch_size = 128, 
         epochs = 100, 
         lr=1e-3,
         loss_type='BCE',
         optimizer='Adam',
-        experiment_name=f'net3.lr1e-4.BCE.Adam.{int(round(time.time()))}'
+        experiment_name=f'overfitting_net-without-init.lr1e-3.BZ-128.Adam.{int(round(time.time()))}'
     )
