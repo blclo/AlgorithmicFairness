@@ -25,27 +25,6 @@ class FullyConnected(nn.Module):
     def __init__(self, channels_in, channels_out=1):
         super().__init__()
 
-        # self.net1 = nn.Sequential(
-        #     nn.Linear(channels_in, 512),
-        #     nn.ReLU(),
-        #     nn.LayerNorm(512),
-        #     nn.Dropout(p=0.1),
-
-        #     nn.Linear(512, 256),
-        #     nn.ReLU(),
-        #     nn.LayerNorm(256),
-        #     nn.Dropout(p=0.1),
-
-        #     nn.Linear(256, 128),
-        #     nn.ReLU(),
-        #     nn.LayerNorm(128),
-        #     nn.Dropout(p=0.1),
-
-        #     nn.Linear(128, 64),
-        #     nn.Linear(64, channels_out),
-        #     nn.Sigmoid() if channels_out == 1 else nn.Softmax(dim=1),
-        # )
-
         self.net2 = nn.Sequential(
             nn.Linear(channels_in, 256),
             nn.ReLU(),
@@ -56,10 +35,7 @@ class FullyConnected(nn.Module):
             nn.Sigmoid() if channels_out == 1 else nn.Softmax(dim=1),
         )
        
-        #self.net1.apply(self.init_weights)
-        #self.net2.apply(self.init_weights)
-
-        self.net = self.net2
+        self.net.apply(self.init_weights)
 
     def init_weights(self, m):
         if type(m) == nn.Linear:
