@@ -10,6 +10,7 @@ from tqdm import trange
 
 from src.models.model import MLP, FullyConnected, get_loss_function, get_optimizer
 from src.data.dataloader import CatalanJuvenileJustice
+from src.evaluation.fairness_criteria import Independence;
 
 def set_seed(seed: int):
     torch.manual_seed(seed)
@@ -71,6 +72,7 @@ def train(
         for epoch in t:
             running_loss_train, running_loss_val    = 0.0, 0.0
             running_acc_train,  running_acc_val     = 0.0, 0.0
+            independence_criteria = 0.0
 
             for batch in iter(train_loader):
                 # Extract data                
@@ -97,6 +99,7 @@ def train(
             with torch.no_grad():
                 for batch in iter(val_loader):
                     inputs, labels = batch['data'].to(device), batch['label'].to(device)
+                    print(inputs.shape)
 
                     # Get predictions
                     y_pred = model(inputs)
@@ -105,6 +108,9 @@ def train(
                     running_loss_val += criterion(y_pred.float(), labels.float())
                     equals = (y_pred >= 0.5) == labels.view(*y_pred.shape)
                     running_acc_val += torch.mean(equals.type(torch.FloatTensor))
+                    
+                    independence_criteria += Independence(y_pred, labels, inputs)
+
 
             if running_loss_val / len(val_loader) < current_best_loss:
                 current_best_loss = running_loss_val / len(val_loader)
@@ -170,7 +176,7 @@ if __name__ == '__main__':
     train(
         datafolder_path = 'data',
         batch_size = 128, 
-        epochs = 100, 
+        epochs = 20, 
         lr=1e-3,
         loss_type='BCE',
         optimizer='Adam',

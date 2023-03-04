@@ -20,6 +20,7 @@ class CatalanJuvenileJustice(Dataset):
 
         # Extract data
         self.columns = datafile['data']['columns']
+        print(len(self.columns))
         self.data = torch.FloatTensor(datafile['data']['content'])
 
         # Extract labels
@@ -29,6 +30,9 @@ class CatalanJuvenileJustice(Dataset):
         # Define number of classes and points
         self.n_classes = self.labels.unique().__len__()
         self.n_points, self.n_attributes = self.data.shape
+
+    def getColumns(self):
+        return self.columns
 
     def __len__(self):
         return len(self.data)
