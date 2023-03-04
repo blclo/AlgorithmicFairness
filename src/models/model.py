@@ -22,33 +22,32 @@ class MLP(nn.Module):
     
 #  ---------------  Model  ---------------
 class FullyConnected(nn.Module):
-    def __init__(self, channels_in, channels_out=2):
+    def __init__(self, channels_in, channels_out=1):
         super().__init__()
 
         self.net = nn.Sequential(
-            nn.Linear(channels_in, 128),
-            nn.Linear(128, 64),
+            nn.Linear(channels_in, 256),
             nn.ReLU(),
-            nn.Linear(64, 32),
-            nn.Linear(32, 16),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(16, 8),
-            nn.Linear(8, 4),
-            nn.ReLU(),
-            nn.Linear(4, channels_out),
-            nn.Softmax(dim=1),
+
+            nn.Linear(128, channels_out),
+            nn.Sigmoid() if channels_out == 1 else nn.Softmax(dim=1),
         )
-                
+       
+        self.net.apply(self.init_weights)
+
+    def init_weights(self, m):
+        if type(m) == nn.Linear:
+            torch.nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+            m.bias.data.fill_(0.01)
+
     def forward(self, x):
-        probs = self.net(x)
-        logits = torch.log(probs)
-        return probs, logits
+        return self.net(x)
 
 def get_loss_function(type: str = 'BCE'):
     if type == 'BCE':
         return nn.BCELoss()
-    elif type == 'NLL':
-        return nn.NLLLoss()
     else:
         raise NotImplemented("The specified loss criterion is yet to be implemented...")
 
