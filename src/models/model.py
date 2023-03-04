@@ -25,30 +25,61 @@ class FullyConnected(nn.Module):
     def __init__(self, channels_in, channels_out=2):
         super().__init__()
 
-        self.net = nn.Sequential(
-            nn.Linear(channels_in, 128),
+        self.net1 = nn.Sequential(
+            nn.Linear(channels_in, 512),
+            nn.ReLU(),
+            nn.LayerNorm(512),
+            nn.Dropout(p=0.1),
+
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.LayerNorm(256),
+            nn.Dropout(p=0.1),
+
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.LayerNorm(128),
+            nn.Dropout(p=0.1),
+
             nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
-            nn.Linear(32, 16),
-            nn.ReLU(),
-            nn.Linear(16, 8),
-            nn.Linear(8, 4),
-            nn.ReLU(),
-            nn.Linear(4, channels_out),
-            nn.Softmax(dim=1),
+            nn.Linear(64, channels_out),
+            nn.Softmax(dim=1) if channels_out == 1 else nn.Softmax(dim=1),
         )
-                
+
+        self.net2 = nn.Sequential(
+            nn.Linear(channels_in, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+
+            nn.Linear(128, channels_out),
+            nn.Sigmoid() if channels_out == 1 else nn.Softmax(dim=1),
+        )
+
+        self.net3 = nn.Sequential(
+            nn.Linear(channels_in, 1),
+            nn.Sigmoid() if channels_out == 1 else nn.Softmax(dim=1),
+        )
+        
+        self.net1.apply(self.init_weights)
+        #self.net2.apply(self.init_weights)
+        #self.net3.apply(self.init_weights)
+
+    def init_weights(self, m):
+        if type(m) == nn.Linear:
+            torch.nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+            m.bias.data.fill_(0.01)
+
     def forward(self, x):
-        probs = self.net(x)
-        logits = torch.log(probs)
-        return probs, logits
+        return self.net2(x)
 
 def get_loss_function(type: str = 'BCE'):
     if type == 'BCE':
         return nn.BCELoss()
     elif type == 'NLL':
         return nn.NLLLoss()
+    elif type == 'CrossEntropy':
+        return nn.CrossEntropyLoss()
     else:
         raise NotImplemented("The specified loss criterion is yet to be implemented...")
 
