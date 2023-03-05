@@ -19,7 +19,7 @@ def train(
         datafolder_path: str,
         batch_size: int = 128, num_workers: int = 1, test_proportion: float = 0.2, val_proportion: float = 0.2, split_type: str = 'random',
         lr=1e-3, epochs: int = 100, loss_type: str = 'BCE', optimizer: str = 'SGD', momentum: float = 0.9,
-        experiment_name: str = str(int(round(time.time()))), save_path: str = '',
+        experiment_name: str = str(int(round(time.time()))), save_path: str = '', datafile_name: str = 'catalan_dataset.pth',
         seed: int = 42,
     ):
     """
@@ -42,7 +42,7 @@ def train(
 
     # Load dataset
     dataset = CatalanJuvenileJustice(
-        data_path=f"{datafolder_path}/processed/catalan_dataset.pth"
+        data_path=f"{datafolder_path}/processed/{datafile_name}"
     )
 
     # Split into training and test
@@ -57,6 +57,11 @@ def train(
 
     # Use gpu if available
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    # Standardization constants
+    mu      = train_loader.dataset.dataset.data.mean(axis=0).to(device)
+    sigma   = train_loader.dataset.dataset.data.std(axis=0).to(device)
+
 
     # Define the model, loss criterion and optimizer
     model = FullyConnected(channels_in = dataset.n_attributes, channels_out = 1).to(device)
@@ -79,6 +84,8 @@ def train(
                 # Zero the parameter gradients
                 optimizer.zero_grad()
 
+                # Standardize inputs
+                inputs = (inputs - mu) / sigma
                 # Forward + backward
                 y_pred = model(inputs)
 
@@ -98,6 +105,8 @@ def train(
                 for batch in iter(val_loader):
                     inputs, labels = batch['data'].to(device), batch['label'].to(device)
 
+                    # Standardize inputs
+                    inputs = (inputs - mu) / sigma
                     # Get predictions
                     y_pred = model(inputs)
         
@@ -130,10 +139,16 @@ def train(
                         },
                     },
                     "data": {
-                        "data_path": datafolder_path,
-                        'test_proportion': test_proportion,
-                        'val_proportion': val_proportion,
-                        'split_type': split_type,
+                        "filename": datafile_name,
+                        "standardization": {
+                            "mu": mu,
+                            "sigma": sigma,
+                        },
+                        "split": {
+                            "test_proportion": test_proportion,
+                            "val_proportion": val_proportion,
+                            "split_type": split_type,
+                        },
                     },
                     "best_epoch": epoch + 1,
                     "state_dict": model.state_dict(),
@@ -169,10 +184,13 @@ if __name__ == '__main__':
 
     train(
         datafolder_path = 'data',
-        batch_size = 128, 
+        datafile_name='catalan_new_dataset.pth',
+        batch_size = 32, 
         epochs = 100, 
-        lr=1e-3,
+        lr=1e-4,
         loss_type='BCE',
         optimizer='Adam',
-        experiment_name=f'overfitting_net-without-init.lr1e-3.BZ-128.Adam.{int(round(time.time()))}'
+        #experiment_name=f'overfitting_net-without-init.lr1e-3.BZ-128.Adam.{int(round(time.time()))}'
+        experiment_name=f'temporary-biased-model',
+        save_path='models'
     )
