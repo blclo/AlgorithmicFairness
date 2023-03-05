@@ -109,7 +109,8 @@ def train(
                     equals = (y_pred >= 0.5) == labels.view(*y_pred.shape)
                     running_acc_val += torch.mean(equals.type(torch.FloatTensor))
                     
-                    independence_criteria += Independence(y_pred, labels, inputs)
+                    #independence_criteria += Independence(y_pred, labels, inputs)
+                    print(Independence(y_pred, labels, inputs))
 
 
             if running_loss_val / len(val_loader) < current_best_loss:
