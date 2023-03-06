@@ -58,18 +58,25 @@ class AutoEncoder(nn.Module):
         self.input_params = [channels_in, z_dim, channels_out]
 
         self.encoder = nn.Sequential(
-            nn.Linear(channels_in, 128),
+            nn.Linear(channels_in, 32),
             nn.ReLU(),
-            nn.Linear(128, 64),
+            nn.Dropout(p=0.2),
+            nn.BatchNorm1d(32),
+            
+            nn.Linear(32, 32),
             nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.BatchNorm1d(32),
 
-            nn.Linear(64, z_dim),
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.BatchNorm1d(32),
+
+            nn.Linear(32, z_dim),
         )
        
         self.classifier = nn.Sequential(
-            nn.Linear(z_dim, z_dim),
-            nn.ReLU(),
-            nn.Linear(z_dim, z_dim),
             nn.Linear(z_dim, channels_out),
             nn.Sigmoid() if channels_out == 1 else nn.Softmax(dim=1),
         )
@@ -86,8 +93,7 @@ class AutoEncoder(nn.Module):
         z = self.encoder(x)
         pred = self.classifier(z)
         return {'pred': pred, 'z': z}
-
-
+    
 
 def get_loss_function(type: str = 'BCE'):
     if type == 'BCE':
