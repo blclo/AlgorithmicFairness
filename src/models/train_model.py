@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 from tqdm import trange
 
-from src.models.model import MLP, FullyConnected, get_loss_function, get_optimizer
+from src.models.model import AutoEncoder, FullyConnected, get_loss_function, get_optimizer, get_model
 from src.data.dataloader import CatalanJuvenileJustice
 
 def set_seed(seed: int):
@@ -16,10 +16,11 @@ def set_seed(seed: int):
 
 #  ---------------  Training  ---------------
 def train(
-        datafolder_path: str,
+        datafolder_path: str, datafile_name: str = 'catalan_dataset.pth',
+        model_name: str = 'FullyConnected',
         batch_size: int = 128, num_workers: int = 1, test_proportion: float = 0.2, val_proportion: float = 0.2, split_type: str = 'random',
         lr=1e-3, epochs: int = 100, loss_type: str = 'BCE', optimizer: str = 'SGD', momentum: float = 0.9,
-        experiment_name: str = str(int(round(time.time()))), save_path: str = '', datafile_name: str = 'catalan_dataset.pth',
+        experiment_name: str = str(int(round(time.time()))), save_path: str = '', 
         seed: int = 42,
     ):
     """
@@ -62,9 +63,8 @@ def train(
     mu      = train_loader.dataset.dataset.data.mean(axis=0).to(device)
     sigma   = train_loader.dataset.dataset.data.std(axis=0).to(device)
 
-
     # Define the model, loss criterion and optimizer
-    model = FullyConnected(channels_in = dataset.n_attributes, channels_out = 1).to(device)
+    model = get_model(model_name, dataset.n_attributes).to(device)
     criterion = get_loss_function(type=loss_type)
     optimizer = get_optimizer(model, type=optimizer, lr=lr, momentum=momentum)
 
@@ -87,7 +87,8 @@ def train(
                 # Standardize inputs
                 inputs = (inputs - mu) / sigma
                 # Forward + backward
-                y_pred = model(inputs)
+                outputs = model(inputs)
+                y_pred = outputs['pred']
 
                 loss = criterion(y_pred.float(), labels.float())
                 running_loss_train += loss.item()
@@ -108,8 +109,9 @@ def train(
                     # Standardize inputs
                     inputs = (inputs - mu) / sigma
                     # Get predictions
-                    y_pred = model(inputs)
-        
+                    outputs = model(inputs)
+                    y_pred = outputs['pred']
+
                     # Compute loss and accuracy
                     running_loss_val += criterion(y_pred.float(), labels.float())
                     equals = (y_pred >= 0.5) == labels.view(*y_pred.shape)
@@ -121,7 +123,11 @@ def train(
                 checkpoint = {
                     "experiment_name": experiment_name,
                     "seed": seed,
-                    "model.net": model.net,
+                    "model": {
+                        'name': model_name,
+                        'net': model.net,
+                        'input_parameters': model.input_params,
+                    },
                     "input_parameters": {
                         "input_size": dataset.n_attributes,
                         "output_size": 1,
@@ -184,13 +190,13 @@ if __name__ == '__main__':
 
     train(
         datafolder_path = 'data',
-        datafile_name='catalan_new_dataset.pth',
+        model_name='AutoEncoder',
+        datafile_name='biased_catalan_dataset.pth',
         batch_size = 32, 
         epochs = 100, 
         lr=1e-4,
         loss_type='BCE',
         optimizer='Adam',
-        #experiment_name=f'overfitting_net-without-init.lr1e-3.BZ-128.Adam.{int(round(time.time()))}'
-        experiment_name=f'temporary-biased-model',
-        save_path='models'
+        experiment_name=f'temporary-AutoEncoder-sensitive_data',
+        save_path='models',
     )
