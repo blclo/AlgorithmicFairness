@@ -191,12 +191,12 @@ if __name__ == '__main__':
     train(
         datafolder_path = 'data',
         model_name='AutoEncoder',
-        datafile_name='biased_catalan_dataset.pth',
-        batch_size = 32, 
-        epochs = 100, 
+        datafile_name='catalan_dataset.pth',
+        batch_size = 64, 
+        epochs = 20, 
         lr=1e-4,
         loss_type='BCE',
         optimizer='Adam',
-        experiment_name=f'temporary-AutoEncoder-sensitive_data',
+        experiment_name=f'temporary-AutoEncoder-no_sensitive_data',
         save_path='models',
     )
