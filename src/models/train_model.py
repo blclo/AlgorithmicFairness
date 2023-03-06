@@ -10,7 +10,7 @@ from tqdm import trange
 
 from src.models.model import MLP, FullyConnected, get_loss_function, get_optimizer
 from src.data.dataloader import CatalanJuvenileJustice
-from src.evaluation.fairness_criteria import Independence;
+from src.evaluation.fairness_criteria_copy import Fairness_criteria
 
 def set_seed(seed: int):
     torch.manual_seed(seed)
@@ -43,8 +43,10 @@ def train(
 
     # Load dataset
     dataset = CatalanJuvenileJustice(
-        data_path=f"{datafolder_path}/processed/catalan_dataset.pth"
+        data_path=f"{datafolder_path}/processed/catalan_dataset_including_sensitive.pth"
     )
+
+    columns = dataset.getColumns()
 
     # Split into training and test
     train_loader, val_loader, _ = dataset.get_loaders(
@@ -67,12 +69,18 @@ def train(
     print("MLP Architecture:")
     print(model)
 
+    fairness = Fairness_criteria(columns)
+    sensitive_extended = list(fairness.sensitive_dict.keys())
+    Independence_dict = {}
+    #print('Sensitive extended: ', sensitive_extended)
+    #for i in sensitive_extended:
+    #    Independence_dict[i] = 0
+
     writer = SummaryWriter(f"logs/{experiment_name}")
     with trange(epochs) as t:
         for epoch in t:
             running_loss_train, running_loss_val    = 0.0, 0.0
             running_acc_train,  running_acc_val     = 0.0, 0.0
-            independence_criteria = 0.0
 
             for batch in iter(train_loader):
                 # Extract data                
@@ -110,7 +118,13 @@ def train(
                     running_acc_val += torch.mean(equals.type(torch.FloatTensor))
                     
                     #independence_criteria += Independence(y_pred, labels, inputs)
-                    print(Independence(y_pred, labels, inputs))
+                    tmp_independence = fairness.Independence(y_pred, labels, inputs)
+
+                    Independence_dict_tmp = {k: (tmp_independence.get(k, 0) + Independence_dict.get(k, 0)) / 2 for k in set(tmp_independence) | set(Independence_dict)}
+                    
+                    Independence_dict = Independence_dict_tmp
+                    print(Independence_dict)
+                    #print(Fairness_criteria(y_pred, labels, inputs, columns).Independence())
 
 
             if running_loss_val / len(val_loader) < current_best_loss:
