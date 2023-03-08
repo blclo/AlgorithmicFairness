@@ -9,7 +9,7 @@ import time
 from tqdm import trange
 
 from src.models.model import AutoEncoder, FullyConnected, get_loss_function, get_optimizer, get_model
-from src.data.dataloader import CatalanJuvenileJustice
+from src.data.dataloader_including_sensitive import CatalanJuvenileJustice
 from src.evaluation.fairness_criteria import Fairness_criteria
 
 def set_seed(seed: int):
@@ -114,11 +114,12 @@ def train(
             # Validation
             with torch.no_grad():
                 for batch in iter(val_loader):
-                    inputs, labels = batch['data'].to(device), batch['label'].to(device)
-                    print(inputs.shape)
+                    inputs_before, labels = batch['data'].to(device), batch['label'].to(device)
+                    #print('input shape: ', inputs.shape)
 
                     # Standardize inputs
-                    inputs = (inputs - mu) / sigma
+                    inputs = (inputs_before - mu) / sigma
+                    
                     # Get predictions
                     outputs = model(inputs)
                     y_pred = outputs['pred']
@@ -127,16 +128,12 @@ def train(
                     running_loss_val += criterion(y_pred.float(), labels.float())
                     equals = (y_pred >= 0.5) == labels.view(*y_pred.shape)
                     running_acc_val += torch.mean(equals.type(torch.FloatTensor))
-                    
-                    #independence_criteria += Independence(y_pred, labels, inputs)
-                    tmp_independence = fairness.Independence(y_pred, labels, inputs)
 
+                    tmp_independence = fairness.Independence(y_pred, inputs_before)
                     Independence_dict_tmp = {k: (tmp_independence.get(k, 0) + Independence_dict.get(k, 0)) / 2 for k in set(tmp_independence) | set(Independence_dict)}
-                    
                     Independence_dict = Independence_dict_tmp
-                    print(Independence_dict)
-                    #print(Fairness_criteria(y_pred, labels, inputs, columns).Independence())
-
+                    #print(Independence_dict)
+                    
 
             if running_loss_val / len(val_loader) < current_best_loss:
                 current_best_loss = running_loss_val / len(val_loader)
@@ -216,9 +213,9 @@ if __name__ == '__main__':
     train(
         datafolder_path = 'data',
         model_name='AutoEncoder',
-        datafile_name='catalan_dataset_without_sensitives.pth',
+        datafile_name='catalan_dataset_including_sensitive.pth',
         batch_size = 64, 
-        epochs = 100, 
+        epochs = 20, 
         lr=1e-4,
         loss_type='BCE',
         optimizer='Adam',
