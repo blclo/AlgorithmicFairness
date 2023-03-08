@@ -4,6 +4,7 @@ import numpy as np
 from torch import IntTensor
 from src.data.dataloader import CatalanJuvenileJustice
 import re
+np.seterr(divide='ignore', invalid='ignore')
 
 class Fairness_criteria:
 

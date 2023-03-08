@@ -75,12 +75,10 @@ def train(
     print(model)
 
     fairness = Fairness_criteria(columns)
-    sensitive_extended = list(fairness.sensitive_dict.keys())
     Independence_dict = {}
     #print('Sensitive extended: ', sensitive_extended)
     #for i in sensitive_extended:
     #    Independence_dict[i] = 0
-
     writer = SummaryWriter(f"logs/{experiment_name}")
     with trange(epochs) as t:
         for epoch in t:
@@ -130,10 +128,9 @@ def train(
                     running_acc_val += torch.mean(equals.type(torch.FloatTensor))
 
                     tmp_independence = fairness.Independence(y_pred, inputs_before)
-                    Independence_dict_tmp = {k: (tmp_independence.get(k, 0) + Independence_dict.get(k, 0)) / 2 for k in set(tmp_independence) | set(Independence_dict)}
+                    Independence_dict_tmp = {k: (tmp_independence.get(k, 0) + Independence_dict.get(k, 0)) for k in set(tmp_independence) | set(Independence_dict)}
                     Independence_dict = Independence_dict_tmp
                     #print(Independence_dict)
-                    
 
             if running_loss_val / len(val_loader) < current_best_loss:
                 current_best_loss = running_loss_val / len(val_loader)
@@ -205,7 +202,7 @@ def train(
 
         print('\n-- Independence criteria --')
         for key, value in Independence_dict.items():
-            print(key, 'has the \"acceptance\" rate of: ', value)
+            print(key, 'has the \"acceptance\" rate of: ', value/(epochs*len(iter(val_loader))))
 
 
 if __name__ == '__main__':
