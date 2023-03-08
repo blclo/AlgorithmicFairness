@@ -9,3 +9,4 @@ matplotlib
 seaborn
 tensorboard
 tqdm
+scikit-learn

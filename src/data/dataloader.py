@@ -22,6 +22,9 @@ class CatalanJuvenileJustice(Dataset):
         self.columns = datafile['data']['columns']
         self.data = torch.FloatTensor(datafile['data']['content'])
 
+        self.sensitive_attributes = datafile['sensitive_attributes']['name']
+        self.sensitive_data = torch.FloatTensor(datafile['sensitive_attributes']['content'])
+
         # Extract labels
         self.target_name = datafile['labels']['name']
         self.labels = torch.LongTensor(datafile['labels']['content'])
@@ -37,9 +40,11 @@ class CatalanJuvenileJustice(Dataset):
         return len(self.data)
 
     def __getitem__(self, item):
-        data = self.data[item, :]
-        label = self.labels[item]
-        return {"data": data, "label": label}
+        return {
+            "data": self.data[item, :], 
+            "label": self.labels[item], 
+            "sensitive_data": self.sensitive_data[item, :]
+        }
 
     def get_loaders(
         self,
