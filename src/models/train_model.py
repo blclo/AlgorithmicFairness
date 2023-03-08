@@ -10,7 +10,7 @@ from tqdm import trange
 
 from src.models.model import MLP, FullyConnected, get_loss_function, get_optimizer
 from src.data.dataloader import CatalanJuvenileJustice
-from src.evaluation.fairness_criteria_copy import Fairness_criteria
+from src.evaluation.fairness_criteria import Fairness_criteria
 
 def set_seed(seed: int):
     torch.manual_seed(seed)
@@ -185,13 +185,17 @@ def train(
             writer.add_scalar(f'{loss_type}/validation',    running_loss_val    / len(val_loader),      epoch)
             writer.add_scalar('accuracy/validation',        running_acc_val     / len(val_loader),      epoch)
 
+        print('\n-- Independence criteria --')
+        for key, value in Independence_dict.items():
+            print(key, 'has the \"acceptance\" rate of: ', value)
+
 
 if __name__ == '__main__':
 
     train(
         datafolder_path = 'data',
         batch_size = 128, 
-        epochs = 20, 
+        epochs = 10, 
         lr=1e-3,
         loss_type='BCE',
         optimizer='Adam',

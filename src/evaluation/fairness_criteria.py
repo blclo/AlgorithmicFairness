@@ -1,39 +1,42 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from torch import IntTensor
 from src.data.dataloader import CatalanJuvenileJustice
 import re
 
-sensitive_attributes = [
-    'V1_sex',
-    'V4_area_origin',
-    'V8_age',
-    'V9_age_at_program_end',
-    'V10_date_of_birth_year'
-]
+class Fairness_criteria:
 
-independence_dict = {}
+    def __init__(self, columns):
 
-sensitive_dict = {}
+        self.columns = columns
 
-attributes = ''
+        sensitive_attributes = [
+            'V1_sex',
+            'V4_area_origin',
+            'V8_age',
+            'V9_age_at_program_end',
+            'V10_date_of_birth_year'
+        ]
 
-def makeSensitive_dict():
-    for s in sensitive_attributes:
-        idx = [i for i, item in enumerate(attributes) if re.search(s+'+', item)]
-        print(attributes[idx[0]])
-        sensitive_dict[s] = idx 
-    return sensitive_dict
+        self.independence_dict = {}
 
-def Independence(y_pred, label, features, columns):
-    for key, value in sensitive_dict.items():
-        for v in range(len(value)):
-            print(attributes[v])
-            independence_dict[attributes[v]] = np.sum([(y_pred[i]==1 and features[i][v]==1) for i in range(len(y_pred))], axis=0)
-    return independence_dict
+        self.sensitive_dict = {}
 
-def Fairness_criteria(y_pred, labels, features, columns):
-    attributes = columns
-    
-    Independence = Independence(y_pred, labels, features, col)
+        for s in sensitive_attributes:
+            idx = [i for i, item in enumerate(self.columns) if re.findall(s+'+', item)]
+            self.sensitive_dict[s] = idx 
 
-    return Independence
+    def Independence(self, y_pred, labels, features):
+        for key, value in self.sensitive_dict.items():
+            for v in value:
+                #print(self.columns[v])
+                acceptance = np.sum([(IntTensor.item(labels[i])==1) and (IntTensor.item(features[i][v])==1) for i in range(len(y_pred))])
+                group = np.sum([IntTensor.item(features[i][v])==1 for i in range(len(y_pred))])
+
+                #positive = np.sum([IntTensor.item(self.y_pred[i])==1 for i in range(len(self.y_pred))])
+                #print('Acceptance:', acceptance)
+                #print('Size of group:', group)
+                self.independence_dict[self.columns[v]] = acceptance / group
+
+                #self.independence_dict[self.columns[v]] = np.sum([(IntTensor.item(self.features[i][v]==1)) for i in range(len(self.y_pred))], axis=0) / np.sum([(positive and IntTensor.item(self.features[i][v]==1)) for i in range(len(self.y_pred))], axis=0)          
+        return self.independence_dict
