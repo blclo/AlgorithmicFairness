@@ -25,7 +25,7 @@ class FairnessVisualizer():
         self.df['color_by'] = df[self.sens_attr].idxmax(1).apply(lambda x: x.split("_")[-1])
 
 
-    def plot_confusion_matrices(self, nrows: int, ncols: int, figsize: Tuple[int, int]):
+    def plot_confusion_matrices(self, nrows: int, ncols: int, figsize: Tuple[int, int], normalize: bool = False):
 
         accs = {}
         fig, axes = plt.subplots(
@@ -34,19 +34,25 @@ class FairnessVisualizer():
 
         for class_idx, col in enumerate(self.sens_attr):
             df_ = self.df.query(f"{col} == 1")
-            max = self.df['color_by'].value_counts().max()
-
+            max_val = self.df['color_by'].value_counts().max()
+            
             ax = axes.flatten()[class_idx]
             cm = confusion_matrix(df_['labels'], df_['preds'])
+            # Store accuracy of sensitive group
+            accs[col] = np.diag(cm).sum() / np.sum(cm)
+            if normalize:
+                cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+                max_val=1
+            
             sns.heatmap(
                 cm,
                 annot=True,
-                fmt="d",
+                fmt="d" if not normalize else ".3f",
                 cmap='Blues',
                 ax=ax,
                 vmin=0,
-                vmax=max,
-                cbar=col == self.sens_attr[-1],
+                vmax=max_val,
+                cbar=False # col == self.sens_attr[-1],
             )
 
             # Set ticks
@@ -56,12 +62,14 @@ class FairnessVisualizer():
             # Set title
             ax.set_title(f"{col} (N={len(df_)})", fontsize=10)
             
-            # Store accuracy of sensitive group
-            accs[col] = np.diag(cm).sum() / len(df_)
+            im = ax.imshow(cm, cmap='Blues')
 
+        fig.subplots_adjust(right=0.8)
+        cbar_ax = fig.add_axes([0.85, 0.1, 0.03, 0.8])
+        plt.colorbar(im, cax=cbar_ax, cmap='Blues')
         # Show figure
-        fig.suptitle("Independence analysis", fontsize=15)
-        return fig, accs
+        #fig.suptitle("Independence analysis", fontsize=15)
+        return fig, axes, accs
     
     def plot_roc_curve(self, figsize: Tuple[int, int] = (6, 6)):
         
@@ -79,7 +87,7 @@ class FairnessVisualizer():
         plt.xlabel('False positive rate (FPR)')
         plt.ylabel('True positive rate (TPR)')
         plt.legend()
-        plt.title("Separation analysis", fontsize=15)
+        fig.suptitle("Separation analysis", fontsize=15)
         return fig
     
     def plot_calibration_curves(self, nrows: int, ncols: int, figsize: Tuple[int, int]):
@@ -109,7 +117,7 @@ class FairnessVisualizer():
 
         fig.subplots_adjust(wspace=0.1)
         fig.suptitle('Sufficiency analysis', fontsize=15)
-        return fig
+        return fig, axes
     
     def compute_calibration_curve(self, targets, probs, num_bins=10):
         # From course 02477 - Bayesian Machine Learning (Spring 2023)
@@ -161,5 +169,5 @@ class FairnessVisualizer():
                 alpha=0.5
             )
         
-        plt.title(f'Latent space analysis ({reduction_method})')
-        return fig
+        fig.suptitle(f'Latent space analysis ({reduction_method})')
+        return fig, ax
