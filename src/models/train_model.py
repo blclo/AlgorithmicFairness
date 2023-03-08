@@ -9,7 +9,8 @@ import time
 from tqdm import trange
 
 from src.models.model import AutoEncoder, FullyConnected, get_loss_function, get_optimizer, get_model
-from src.data.dataloader import CatalanJuvenileJustice
+from src.data.dataloader_including_sensitive import CatalanJuvenileJustice
+from src.evaluation.fairness_criteria import Fairness_criteria
 
 def set_seed(seed: int):
     torch.manual_seed(seed)
@@ -46,6 +47,8 @@ def train(
         data_path=f"{datafolder_path}/processed/{datafile_name}"
     )
 
+    columns = dataset.getColumns()
+
     # Split into training and test
     train_loader, val_loader, _ = dataset.get_loaders(
         batch_size=batch_size, 
@@ -71,6 +74,11 @@ def train(
     print("MLP Architecture:")
     print(model)
 
+    fairness = Fairness_criteria(columns)
+    Independence_dict = {}
+    #print('Sensitive extended: ', sensitive_extended)
+    #for i in sensitive_extended:
+    #    Independence_dict[i] = 0
     writer = SummaryWriter(f"logs/{experiment_name}")
     with trange(epochs) as t:
         for epoch in t:
@@ -104,10 +112,12 @@ def train(
             # Validation
             with torch.no_grad():
                 for batch in iter(val_loader):
-                    inputs, labels = batch['data'].to(device), batch['label'].to(device)
+                    inputs_before, labels = batch['data'].to(device), batch['label'].to(device)
+                    #print('input shape: ', inputs.shape)
 
                     # Standardize inputs
-                    inputs = (inputs - mu) / sigma
+                    inputs = (inputs_before - mu) / sigma
+                    
                     # Get predictions
                     outputs = model(inputs)
                     y_pred = outputs['pred']
@@ -116,6 +126,11 @@ def train(
                     running_loss_val += criterion(y_pred.float(), labels.float())
                     equals = (y_pred >= 0.5) == labels.view(*y_pred.shape)
                     running_acc_val += torch.mean(equals.type(torch.FloatTensor))
+
+                    tmp_independence = fairness.Independence(y_pred, inputs_before)
+                    Independence_dict_tmp = {k: (tmp_independence.get(k, 0) + Independence_dict.get(k, 0)) for k in set(tmp_independence) | set(Independence_dict)}
+                    Independence_dict = Independence_dict_tmp
+                    #print(Independence_dict)
 
             if running_loss_val / len(val_loader) < current_best_loss:
                 current_best_loss = running_loss_val / len(val_loader)
@@ -185,15 +200,19 @@ def train(
             writer.add_scalar(f'{loss_type}/validation',    running_loss_val    / len(val_loader),      epoch)
             writer.add_scalar('accuracy/validation',        running_acc_val     / len(val_loader),      epoch)
 
+        print('\n-- Independence criteria --')
+        for key, value in Independence_dict.items():
+            print(key, 'has the \"acceptance\" rate of: ', value/(epochs*len(iter(val_loader))))
+
 
 if __name__ == '__main__':
 
     train(
         datafolder_path = 'data',
         model_name='AutoEncoder',
-        datafile_name='catalan_dataset_without_sensitives.pth',
+        datafile_name='catalan_dataset_including_sensitive.pth',
         batch_size = 64, 
-        epochs = 100, 
+        epochs = 20, 
         lr=1e-4,
         loss_type='BCE',
         optimizer='Adam',
