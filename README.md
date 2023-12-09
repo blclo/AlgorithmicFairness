@@ -1,8 +1,10 @@
 Project on Algorithmic Fairness
 ==============================
 
-Special course in Responsible AI @ DTU
+A special course in Responsible AI @ DTU
 
+In this project, we perform a Gender Fairness analysis to evaluate the impact of removing proxy variables. 
+The evaluated classifier predicts whether some subjects are prone to re-offend or not in their crimes. The approaches developed evaluate Independence, Separation, and Calibration as Fairness Criteria for the mitigation strategy chosen.
 
 ## Setup
 
